@@ -1,6 +1,6 @@
 """
 XAUUSD AI DERIV BOT
-Main Entry Point - Full V1 Pipeline with Startup Notification & Real-time Price Check
+Main Entry Point - Clean Version (No Startup Spam)
 """
 import time
 import json
@@ -16,7 +16,6 @@ from risk.position_size import calculate_position_size
 from telegram.anti_spam import check_anti_spam
 from telegram.bot import send_signal_notification, send_error_notification
 from database.journal import log_signal_to_db, init_db
-from telegram.notifier import send_telegram_message
 
 def fetch_deriv_candles(granularity: int, count: int = 100) -> pd.DataFrame:
     sym = "frxXAUUSD"
@@ -92,21 +91,10 @@ def main():
             send_error_notification(err_txt)
             return
 
-        # Ambil harga real-time terakhir dari candle M15 untuk cek akurasi
+        # Cek harga real-time di log console (Tanpa kirim spam ke Telegram)
         latest_price = df_m15.iloc[-1]['close']
         latest_time = df_m15.iloc[-1]['time']
         print(f"✅ Harga Real-time XAUUSD (Deriv): {latest_price} (Waktu: {latest_time})")
-
-        # KIRIM NOTIFIKASI STARTUP SEKALI JALAN KE TELEGRAM
-        startup_msg = f"""
-🚀 **XAUUSD BOT AKTIF & SIAP**
-=========================
-🔹 **Status**: Terhubung ke Server Deriv
-🔹 **Harga XAUUSD Real-time**: `{latest_price}`
-🔹 **Waktu Data**: `{latest_time}`
-🔹 **Keterangan**: Bot sedang memantau market (M30 & M15).
-"""
-        send_telegram_message(startup_msg)
 
         # 4. Analisis Konteks M30 & Setup M15
         print("📊 Menjalankan analisis strategi M30 & M15...")
@@ -151,7 +139,7 @@ def main():
             log_signal_to_db(signal_payload, ai_eval)
             send_signal_notification(signal_payload, ai_eval, risk_calc)
         else:
-            print("⏸️ Pasar masih WAIT. Bot siaga memantau.")
+            print("⏸️ Pasar masih WAIT. Bot siaga memantau (Tanpa notif Telegram).")
 
         print("🏁 Eksekusi pipeline bot selesai.")
 
