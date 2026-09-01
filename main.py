@@ -1,17 +1,56 @@
 """
 XAUUSD AI DERIV BOT
-Main Entry Point (Version V0)
+Main Entry Point - Snapshot Mode (GitHub Actions Friendly)
 """
 import time
-import threading
-from config.settings import validate_basic_config, is_trading_day, DERIV_SYMBOL, LOG_LEVEL
-from deriv.websocket import DerivWebSocket
-from deriv.market_data import subscribe_ticks
-from deriv.candles import CandleBuilder
+import json
+import websocket
+from config.settings import validate_basic_config, is_trading_day, DERIV_APP_ID, DERIV_SYMBOL, LOG_LEVEL
+
+def fetch_market_snapshot():
+    """
+    Melakukan koneksi sekali jalan (snapshot), meminta data harga/tick terkini,
+    lalu menutup koneksi secara bersih setelah data didapat.
+    """
+    ws_url = f"wss://ws.derivws.com/websockets/v3?app_id={DERIV_APP_ID}"
+    collected_data = {"tick": None}
+
+    def on_message(ws, message):
+        data = json.loads(message)
+        if data.get("msg_type") == "tick":
+            collected_data["tick"] = data.get("tick")
+            ws.close() # Langsung tutup begitu data tick didapat
+
+    def on_open(ws):
+        # Kirim request tick sekali jalan untuk XAUUSD
+        payload = {
+            "ticks": DERIV_SYMBOL
+        }
+        ws.send(json.dumps(payload))
+
+    def on_error(ws, error):
+        print(f"🔴 WebSocket Error: {error}")
+
+    def on_close(ws, close_status_code, close_msg):
+        print("🔌 Koneksi snapshot ditutup.")
+
+    # Jalankan koneksi singkat
+    websocket.enableTrace(False)
+    ws = websocket.WebSocketApp(
+        ws_url,
+        on_open=on_open,
+        on_message=on_message,
+        on_error=on_error,
+        on_close=on_close
+    )
+    
+    # Jalankan dengan timeout maksimal 10 detik supaya tidak menggantung
+    ws.run_forever(ping_timeout=5)
+    return collected_data["tick"]
 
 def main():
     print("==================================================")
-    print("XAUUSD AI DERIV BOT - MAIN ENGINE (V0)")
+    print("XAUUSD AI DERIV BOT - SNAPSHOT ENGINE (V0)")
     print("==================================================")
 
     # 1. Validasi Konfigurasi Dasar
@@ -28,73 +67,22 @@ def main():
     
     if not trading_day:
         print("⚠️ Hari ini adalah akhir pekan (Weekend). Bot otomatis OFF sesuai jadwal.")
-        print("Bot akan kembali standby otomatis pada hari Senin.")
         return
 
-    # 3. Inisialisasi Candle Builder (M15 & M30)
-    builder = CandleBuilder()
+    # 3. Tarik Data Snapshot Pasar Terkini
+    print(f"🔄 Menghubungkan ke Deriv untuk mengambil data snapshot {DERIV_SYMBOL}...")
+    tick_data = fetch_market_snapshot()
 
-    # 4. Handler untuk pesan WebSocket yang masuk
-    def on_message_handler(data):
-        msg_type = data.get("msg_type")
-        
-        if msg_type == "tick":
-            tick = data.get("tick", {})
-            price = tick.get("quote")
-            epoch = tick.get("epoch")
-            symbol = tick.get("symbol")
-            
-            if price and epoch:
-                # Proses tick ke builder M15 & M30
-                builder.process_tick(float(price), int(epoch))
-                status = builder.get_latest_status()
-                
-                print(f"🟢 [DATA ENGINE] Tick Masuk | Simbol: {symbol} | Harga: {price}")
-                
-                # Menampilkan status candle berjalan
-                if status["m15"]:
-                    m15 = status["m15"]
-                    print(f"   └─ [M15] O:{m15['open']} H:{m15['high']} L:{m15['low']} C:{m15['close']}")
-                if status["m30"]:
-                    m30 = status["m30"]
-                    print(f"   └─ [M30] O:{m30['open']} H:{m30['high']} L:{m30['low']} C:{m30['close']}")
-        
-        elif msg_type == "error":
-            print(f"🔴 Deriv Server Error: {data.get('error', {}).get('message')}")
-
-    # 5. Inisialisasi dan Jalankan WebSocket Client di Background Thread
-    ws_client = DerivWebSocket(on_message_callback=on_message_handler)
-    
-    def run_websocket():
-        ws_client.connect()
-
-    ws_thread = threading.Thread(target=run_websocket)
-    ws_thread.daemon = True
-    ws_thread.start()
-
-    # Beri jeda sejenak untuk koneksi, lalu kirim perintah subscribe tick
-    time.sleep(3)
-    if ws_client.ws and ws_client.ws.sock and ws_client.ws.sock.connected:
-        print("Mengirim perintah langganan (subscribe) tick real-time ke Deriv...")
-        subscribe_ticks(ws_client)
+    if tick_data:
+        price = tick_data.get("quote")
+        epoch = tick_data.get("epoch")
+        symbol = tick_data.get("symbol")
+        print(f"🟢 [SNAPSHOT BERHASIL] Simbol: {symbol} | Harga Terkini: {price} | Waktu: {epoch}")
+        # Di sini nanti kita pasang analisis M15 & M30 pada tahap berikutnya!
     else:
-        print("🔴 Gagal terhubung ke WebSocket Deriv saat inisialisasi awal.")
+        print("⚠️ Gagal mendapatkan data tick snapshot dalam batas waktu yang ditentukan.")
 
-    # 6. Main Loop Bot V0
-    try:
-        while True:
-            time.sleep(1)
-            
-            # Pengecekan dinamis apakah hari berganti menjadi weekend di tengah jalan
-            if not is_trading_day():
-                print("⚠️ Memasuki jam weekend. Mematikan bot secara aman...")
-                break
-                
-    except KeyboardInterrupt:
-        print("\n🛑 Bot dihentikan secara manual oleh pengguna (KeyboardInterrupt).")
-        ws_client.close()
-    finally:
-        print("🔌 Koneksi ditutup. Bot V0 Berhenti.")
+    print("🏁 Eksekusi snapshot 5 menitan selesai. Bot keluar secara aman.")
 
 if __name__ == "__main__":
     main()
