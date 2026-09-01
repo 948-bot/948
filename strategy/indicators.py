@@ -1,5 +1,41 @@
-import pandas as pd,numpy as np
-def df(candles):
-    x=pd.DataFrame([c.__dict__ for c in candles]); return x.sort_values("epoch").drop_duplicates("epoch").reset_index(drop=True) if not x.empty else x
-def indicators(x):
-    x=x.copy(); x["ema20"]=x.close.ewm(span=20,adjust=False).mean(); x["ema50"]=x.close.ewm(span=50,adjust=False).mean(); d=x.close.diff(); g=d.clip(lower=0).rolling(14).mean(); l=(-d.clip(upper=0)).rolling(14).mean(); rs=g/l.replace(0,np.nan); x["rsi"]=100-100/(1+rs); pc=x.close.shift(1); tr=pd.concat([x.high-x.low,(x.high-pc).abs(),(x.low-pc).abs()],axis=1).max(axis=1); x["atr"]=tr.rolling(14).mean(); return x
+"""
+XAUUSD AI DERIV BOT
+Indicators Calculation Module
+"""
+import pandas as pd
+import numpy as np
+
+def calculate_ema(series: pd.Series, period: int) -> pd.Series:
+    return series.ewm(span=period, adjust=False).mean()
+
+def calculate_rsi(series: pd.Series, period: int = 14) -> pd.Series:
+    delta = series.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+def calculate_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    high = df['high']
+    low = df['low']
+    close = df['close']
+    tr1 = high - low
+    tr2 = abs(high - close.shift(1))
+    tr3 = abs(low - close.shift(1))
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    return tr.rolling(window=period).mean()
+
+def add_all_indicators(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Menambahkan seluruh indikator standar ke dalam DataFrame candle.
+    """
+    if df.empty or len(df) < 30:
+        return df
+
+    df['ema_20'] = calculate_ema(df['close'], 20)
+    df['ema_50'] = calculate_ema(df['close'], 50)
+    df['rsi_14'] = calculate_rsi(df['close'], 14)
+    df['atr_14'] = calculate_atr(df, 14)
+
+    return df
