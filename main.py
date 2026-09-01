@@ -23,7 +23,8 @@ def main():
 
     # 2. Cek Jadwal Operasional (Senin - Jumat)
     trading_day = is_trading_day()
-    print(f"📅 Status Hari Trading (Senin-Jumat): {'AKTIF 🟢' : LIBUR 🔴}")
+    status_teks = "AKTIF 🟢" if trading_day else "LIBUR 🔴"
+    print(f"📅 Status Hari Trading (Senin-Jumat): {status_teks}")
     
     if not trading_day:
         print("⚠️ Hari ini adalah akhir pekan (Weekend). Bot otomatis OFF sesuai jadwal.")
@@ -82,8 +83,6 @@ def main():
     # 6. Main Loop Bot V0
     try:
         while True:
-            # Di tahap V0, loop utama menjaga agar bot tetap hidup 
-            # dan memantau kesehatan koneksi data real-time.
             time.sleep(1)
             
             # Pengecekan dinamis apakah hari berganti menjadi weekend di tengah jalan
