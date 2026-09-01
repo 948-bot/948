@@ -2,9 +2,9 @@ name: XAUUSD AI Deriv Bot Runner
 
 on:
   schedule:
-    # Berjalan otomatis setiap hari Senin sampai Jumat (UTC)
-    - cron: '0 0 * * 1-5'
-  workflow_dispatch: # Bisa di-trigger manual lewat tab Actions di GitHub
+    # Berjalan otomatis setiap 5 menit dari Senin sampai Jumat (UTC)
+    - cron: '*/5 * * * 1-5'
+  workflow_dispatch: # Bisa ditrigger manual juga
 
 jobs:
   run-bot:
@@ -25,12 +25,9 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Run XAUUSD Bot Engine
+    - name: Run XAUUSD Snapshot Engine
       env:
         DERIV_APP_ID: ${{ secrets.DERIV_APP_ID }}
         DERIV_API_TOKEN: ${{ secrets.DERIV_API_TOKEN }}
-        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       run: |
         python main.py
