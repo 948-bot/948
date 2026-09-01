@@ -1,6 +1,6 @@
 """
 XAUUSD AI DERIV BOT
-M15 Setup Engine
+M15 Setup Engine (Flexible & Dynamic Version)
 """
 import pandas as pd
 from strategy.indicators import add_all_indicators
@@ -8,7 +8,7 @@ from strategy.structure import detect_market_structure
 
 def evaluate_m15_setup(df_m15: pd.DataFrame, m30_bias: str) -> dict:
     """
-    Mengevaluasi setup entry pada timeframe M15 berdasarkan konfirmasi tren M30.
+    Mengevaluasi setup entry pada timeframe M15 dengan filter yang lebih dinamis.
     """
     if df_m15.empty or len(df_m15) < 30:
         return {
@@ -26,19 +26,29 @@ def evaluate_m15_setup(df_m15: pd.DataFrame, m30_bias: str) -> dict:
     structure_m15 = detect_market_structure(df)
 
     signal = "NO_SIGNAL"
-    reason = "Kondisi market belum memenuhi kriteria setup"
+    reason = "Kondisi market belum memenuhi kriteria setup fleksibel"
 
-    # Logika Setup BUY (Harus selaras dengan bias M30 Bullish)
-    if m30_bias == "BULLISH" and structure_m15 == "BULLISH":
-        if close_price > ema_20 and 45 <= rsi <= 70:
+    # Toleransi fleksibel: Jika M30 Netral, kita andalkan struktur dan momentum M15 sepenuhnya
+    effective_bias = m30_bias
+    if m30_bias == "NEUTRAL":
+        if structure_m15 == "BULLISH":
+            effective_bias = "BULLISH"
+        elif structure_m15 == "BEARISH":
+            effective_bias = "BEARISH"
+
+    # Logika Setup BUY (Lebih fleksibel)
+    if effective_bias == "BULLISH":
+        # RSI toleransi lebih luas (40 - 75) dan harga di atas EMA20 atau mendekati EMA20
+        if rsi >= 40 and rsi <= 75 and close_price >= (ema_20 * 0.998):
             signal = "BUY"
-            reason = "M15 sejalan dengan bias Bullish M30, harga di atas EMA20 dan RSI sehat."
+            reason = f"Setup BUY terdeteksi: Struktur Bullish, RSI sehat ({rsi:.1f}), harga mendukung."
 
-    # Logika Setup SELL (Harus selaras dengan bias M30 Bearish)
-    elif m30_bias == "BEARISH" and structure_m15 == "BEARISH":
-        if close_price < ema_20 and 30 <= rsi <= 55:
+    # Logika Setup SELL (Lebih fleksibel)
+    elif effective_bias == "BEARISH":
+        # RSI toleransi lebih luas (25 - 60) dan harga di bawah EMA20 atau mendekati EMA20
+        if rsi >= 25 and rsi <= 60 and close_price <= (ema_20 * 1.002):
             signal = "SELL"
-            reason = "M15 sejalan dengan bias Bearish M30, harga di bawah EMA20 dan RSI mendukung."
+            reason = f"Setup SELL terdeteksi: Struktur Bearish, RSI mendukung ({rsi:.1f}), harga di bawah/dekat EMA20."
 
     return {
         "signal": signal,
