@@ -1,13 +1,14 @@
 """
 XAUUSD AI DERIV BOT
-Telegram Notifier Module
+Telegram Notifier Module (Plain Text Mode - 100% Safe from Markdown Errors)
 """
 import os
 import requests
 
 def send_telegram_message(message: str) -> bool:
     """
-    Mengirim pesan teks langsung ke chat Telegram menggunakan Bot API HTTP POST.
+    Mengirim pesan teks langsung ke chat Telegram menggunakan Bot API HTTP POST
+    tanpa parse_mode agar aman dari error parsing Markdown.
     """
     token = os.getenv("TELEGRAM_BOT_TOKEN", "")
     chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
@@ -19,8 +20,8 @@ def send_telegram_message(message: str) -> bool:
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
         "chat_id": chat_id,
-        "text": message,
-        "parse_mode": "Markdown"
+        "text": message
+        # parse_mode sengaja dihapus agar Telegram membacanya sebagai teks biasa yang aman
     }
 
     try:
