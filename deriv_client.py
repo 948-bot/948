@@ -1,55 +1,54 @@
-import requests
-import time
+import json
 import logging
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+websocket = None
+try:
+    import websocket
+except ImportError:
+    import websocket_client as websocket
 
 class DerivPublicClient:
-    """
-    Klien khusus untuk Deriv Public API.
-    TIDAK ADA authorize(), TIDAK ADA token. Murni data publik.
-    """
-    def __init__(self, app_id: int):
+    def __init__(self, app_id: str):
         self.app_id = app_id
-        self.base_url = f"https://ws.derivws.com/websockets/v3?app_id={app_id}"
+        self.url = f"wss://ws.derivws.com/websockets/v3?app_id={self.app_id}"
 
-    def fetch_candles(self, symbol: str, granularity: int, count: int = 60) -> list:
+    def fetch_candles(self, symbol: str, timeframe_minutes: int, count: int = 60) -> list:
         """
-        Mengambil data candle historis dari endpoint publik.
-        Payload dirancang minimal untuk menghindari validasi error.
+        Mengambil data candle historis dari WebSocket publik Deriv.
         """
-        payload = {
+        # Konversi timeframe menit ke detik untuk API Deriv (misal: M5 = 300 detik, M15 = 900, M30 = 1800)
+        granularity = timeframe_minutes * 60
+        
+        request_payload = {
             "ticks_history": symbol,
             "adjust_start_time": 1,
             "count": count,
             "end": "latest",
-            "start": 1,
-            "style": "candles",
-            "granularity": granularity
+            "granularity": granularity,
+            "style": "candles"
         }
-        
-        # Exponential backoff untuk menangani rate limit publik atau timeout jaringan
-        for attempt in range(3):
+
+        for attempt in range(1, 4):
             try:
-                response = requests.post(self.base_url, json=payload, timeout=15)
-                response.raise_for_status()
-                data = response.json()
+                ws = websocket.create_connection(self.url, timeout=10)
+                ws.send(json.dumps(request_payload))
+                response_str = ws.recv()
+                ws.close()
                 
-                # Deriv mengembalikan error di dalam JSON, bukan HTTP status code
-                if "error" in data:
-                    error_msg = data["error"].get("message", "Unknown Deriv Error")
-                    raise Exception(f"Deriv API Error: {error_msg}")
-                
-                if "candles" not in data:
-                    raise Exception("Respons Deriv tidak mengandung data candle.")
-                    
-                return data["candles"]
-                
-            except requests.exceptions.RequestException as e:
-                logging.warning(f"Network error attempt {attempt+1}: {e}")
-                time.sleep(2 ** attempt)
+                data = json.loads(response_str)
+                if "candles" in data:
+                    candles = []
+                    for c in data["candles"]:
+                        candles.append({
+                            "open": float(c.get("open", 0)),
+                            "high": float(c.get("high", 0)),
+                            "low": float(c.get("low", 0)),
+                            "close": float(c.get("close", 0)),
+                            "time": c.get("epoch", 0)
+                        })
+                    return candles
+                elif "error" in data:
+                    logging.warning(f"Deriv API Error (Attempt {attempt}): {data['error'].get('message')}")
             except Exception as e:
-                logging.error(f"Deriv API logic error: {e}")
-                raise
-                
+                logging.warning(f"Network error attempt {attempt}: {str(e)}")
+
         raise ConnectionError("Gagal mengambil data dari Deriv Public API setelah 3 percobaan.")
