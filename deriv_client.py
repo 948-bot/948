@@ -13,28 +13,27 @@ class DerivPublicClient:
 
     def fetch_candles(self, symbol: str, timeframe, count: int = 60) -> list:
         """
-        Mengambil data candle historis dari WebSocket publik Deriv dengan konversi granularity yang aman.
+        Mengambil data candle historis dari WebSocket publik Deriv dengan pemetaan detik aman.
         """
-        # Konversi timeframe ke detik secara cerdas (mendukung integer menit atau string seperti '5m', '15m')
-        if isinstance(timeframe, str):
-            tf_lower = timeframe.lower()
-            if 'm' in tf_lower:
-                minutes = int(tf_lower.replace('m', ''))
-                granularity = minutes * 60
-            elif 'h' in tf_lower:
-                hours = int(tf_lower.replace('h', ''))
-                granularity = hours * 3600
-            else:
-                granularity = int(timeframe) * 60
+        # Konversi cerdas atau pemetaan langsung standar Deriv (dalam detik)
+        # M5 = 300 detik, M15 = 900 detik, M30 = 1800 detik, H1 = 3600 detik
+        tf_str = str(timeframe).lower()
+        
+        if "30" in tf_str:
+            granularity = 1800
+        elif "15" in tf_str:
+            granularity = 900
+        elif "5" in tf_str:
+            granularity = 300
+        elif "1" in tf_str and "h" not in tf_str:
+            granularity = 60
+        elif "h" in tf_str:
+            granularity = 3600
         else:
-            # Jika berupa angka (dianggap menit)
-            granularity = int(timeframe) * 60
-
-        # Validasi standar granularity Deriv (contoh umum: 60, 300, 900, 1800, 3600)
-        valid_granularities = [60, 120, 180, 300, 600, 900, 1800, 3600, 7200, 14400, 28800, 86400]
-        if granularity not in valid_granularities:
-            # Fallback terdekat jika tidak standar, atau paksa ke nilai standar terdekat
-            pass
+            try:
+                granularity = int(timeframe) * 60
+            except:
+                granularity = 300 # Default fallback ke M5 jika gagal membaca
 
         request_payload = {
             "ticks_history": symbol,
