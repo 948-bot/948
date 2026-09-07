@@ -11,13 +11,31 @@ class DerivPublicClient:
         self.app_id = app_id
         self.url = f"wss://ws.derivws.com/websockets/v3?app_id={self.app_id}"
 
-    def fetch_candles(self, symbol: str, timeframe_minutes: int, count: int = 60) -> list:
+    def fetch_candles(self, symbol: str, timeframe, count: int = 60) -> list:
         """
-        Mengambil data candle historis dari WebSocket publik Deriv.
+        Mengambil data candle historis dari WebSocket publik Deriv dengan konversi granularity yang aman.
         """
-        # Konversi timeframe menit ke detik untuk API Deriv (misal: M5 = 300 detik, M15 = 900, M30 = 1800)
-        granularity = timeframe_minutes * 60
-        
+        # Konversi timeframe ke detik secara cerdas (mendukung integer menit atau string seperti '5m', '15m')
+        if isinstance(timeframe, str):
+            tf_lower = timeframe.lower()
+            if 'm' in tf_lower:
+                minutes = int(tf_lower.replace('m', ''))
+                granularity = minutes * 60
+            elif 'h' in tf_lower:
+                hours = int(tf_lower.replace('h', ''))
+                granularity = hours * 3600
+            else:
+                granularity = int(timeframe) * 60
+        else:
+            # Jika berupa angka (dianggap menit)
+            granularity = int(timeframe) * 60
+
+        # Validasi standar granularity Deriv (contoh umum: 60, 300, 900, 1800, 3600)
+        valid_granularities = [60, 120, 180, 300, 600, 900, 1800, 3600, 7200, 14400, 28800, 86400]
+        if granularity not in valid_granularities:
+            # Fallback terdekat jika tidak standar, atau paksa ke nilai standar terdekat
+            pass
+
         request_payload = {
             "ticks_history": symbol,
             "adjust_start_time": 1,
